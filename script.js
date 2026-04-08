@@ -3,9 +3,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const videos = document.querySelectorAll(".reel-video");
     const scrollHint = document.querySelector("#scroll-hint");
     const bgMusic = document.querySelector("#bg-music");
+    const playOverlay = document.querySelector("#play-overlay");
 
     let isAppPaused = false;
     let hasStartedOnce = false;
+
+    // Lock scrolling initially explicitly
+    videoFeed.classList.add("no-scroll");
 
     console.log("App Initialized. Music Element:", bgMusic ? "Found" : "Not Found");
 
@@ -43,7 +47,12 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log(`Interaction detected: ${e.type}`);
 
         if (!hasStartedOnce) {
-            // First interaction: start everything
+            // First interaction: Dismiss overlay, unlock scroll, and start everything
+            if (playOverlay) {
+                playOverlay.classList.add("hidden");
+                setTimeout(() => playOverlay.remove(), 1000);
+            }
+            videoFeed.classList.remove("no-scroll");
             syncPlayback(true);
         } else {
             // Subsequent interactions: Toggle ONLY on click
@@ -58,9 +67,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Try autoplay (hidden fallback, likely to fail but good to have)
     bgMusic.play().then(() => {
         hasStartedOnce = true;
+        if (playOverlay) playOverlay.remove();
+        videoFeed.classList.remove("no-scroll");
         console.log("Autoplay success");
     }).catch(() => {
-        console.log("Autoplay blocked - awaiting user interaction");
+        console.log("Autoplay blocked - awaiting user interaction via overlay");
     });
 
     // Event Listeners (Strictly 'click' to avoid scroll-driven touch events)
