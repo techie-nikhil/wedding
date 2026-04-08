@@ -3,7 +3,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const videos = document.querySelectorAll(".reel-video");
     const scrollHint = document.querySelector("#scroll-hint");
     const bgMusic = document.querySelector("#bg-music");
-    const playOverlay = document.querySelector("#play-overlay");
 
     let isAppPaused = false;
     let hasStartedOnce = false;
@@ -30,8 +29,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.log("Playback Synced: Playing");
             }).catch(e => {
                 console.error("Playback failed:", e);
-                // If it fails, we keep the overlay or show it again? 
-                // Usually it only fails if there's no user gesture.
             });
         } else {
             bgMusic.pause();
@@ -43,20 +40,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Global Interaction Handler
     const handleGlobalInteraction = (e) => {
-        // Prevent double-firing on mobile
-        if (e.type === 'click' && 'ontouchstart' in window) return;
-
         console.log(`Interaction detected: ${e.type}`);
 
         if (!hasStartedOnce) {
-            // First interaction: Dismiss overlay and start everything
-            if (playOverlay) {
-                playOverlay.classList.add("hidden");
-                setTimeout(() => playOverlay.remove(), 1000);
-            }
+            // First interaction: start everything
             syncPlayback(true);
         } else {
-            // Subsequent interactions: Toggle
+            // Subsequent interactions: Toggle ONLY on click
             if (bgMusic.paused) {
                 syncPlayback(true);
             } else {
@@ -68,15 +58,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Try autoplay (hidden fallback, likely to fail but good to have)
     bgMusic.play().then(() => {
         hasStartedOnce = true;
-        if (playOverlay) playOverlay.remove();
         console.log("Autoplay success");
     }).catch(() => {
-        console.log("Autoplay blocked - awaiting user interaction via overlay");
+        console.log("Autoplay blocked - awaiting user interaction");
     });
 
-    // Event Listeners for activation and toggling
+    // Event Listeners (Strictly 'click' to avoid scroll-driven touch events)
     window.addEventListener("click", handleGlobalInteraction);
-    window.addEventListener("touchstart", handleGlobalInteraction, { passive: true });
     
     // Scroll Hint & Position Management
     videoFeed.addEventListener("scroll", () => {
@@ -102,6 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 video.muted = true; // bgMusic is primary
                 video.currentTime = 0;
                 
+                // Only autoplay the video if the app state is not explicitly paused
                 if (hasStartedOnce && !isAppPaused) {
                     video.play().catch(e => console.warn("Video play failed", e));
                 }
