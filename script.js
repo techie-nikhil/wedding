@@ -46,35 +46,51 @@ document.addEventListener("DOMContentLoaded", () => {
     const observer = new IntersectionObserver(handleIntersection, observerOptions);
     videos.forEach((video) => observer.observe(video));
 
-    // Global Toggle Functionality
-    const toggleAppPlayback = () => {
+    // Initial interaction handler to start music if blocked
+    const startAppOnInteraction = () => {
         if (bgMusic.paused) {
-            // Play everything
+            bgMusic.play().then(() => {
+                isAppPaused = false;
+                console.log("Music started via interaction");
+            }).catch(e => console.log("Still blocked", e));
+        }
+        // Remove listeners once interaction occurs
+        window.removeEventListener("click", startAppOnInteraction);
+        window.removeEventListener("touchstart", startAppOnInteraction);
+        videoFeed.removeEventListener("scroll", startAppOnInteraction);
+    };
+
+    // Global Toggle Functionality (only after initial start)
+    const toggleAppPlayback = (e) => {
+        // If music hasn't started yet, this click will be handled by the interaction listener
+        // But we want toggling to work after the first start.
+        if (bgMusic.paused && !isAppPaused) return; // Wait for initial start handled below
+
+        if (bgMusic.paused) {
             bgMusic.play().catch(e => console.log("Music play blocked", e));
             isAppPaused = false;
-            
-            // Play the currently visible video
             const visibleVideo = Array.from(videos).find(v => {
                 const rect = v.getBoundingClientRect();
                 return rect.top >= 0 && rect.bottom <= window.innerHeight;
             });
             if (visibleVideo) visibleVideo.play();
         } else {
-            // Pause everything
             bgMusic.pause();
             isAppPaused = true;
-            
-            // Pause all videos
             videos.forEach(v => v.pause());
         }
     };
 
-    // Tap anywhere to toggle (excluding potential interactive elements like buttons if added later)
-    window.addEventListener("click", (e) => {
-        toggleAppPlayback();
-    });
+    // Interaction fallbacks
+    window.addEventListener("click", startAppOnInteraction);
+    window.addEventListener("touchstart", startAppOnInteraction);
+    videoFeed.addEventListener("scroll", startAppOnInteraction);
 
-    // Hide scroll hint after user starts scrolling
+    // Regular toggle logic for clicks after start
+    // We add this with a slight delay or handle it within the toggle function
+    window.addEventListener("click", toggleAppPlayback);
+
+    // Hide scroll hint and manage hint visibility
     videoFeed.addEventListener("scroll", () => {
         if (videoFeed.scrollTop > 50) {
             scrollHint.style.opacity = "0";
