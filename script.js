@@ -2,6 +2,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const videoFeed = document.querySelector("#video-feed");
     const videos = document.querySelectorAll(".reel-video");
     const scrollHint = document.querySelector("#scroll-hint");
+    const bgMusic = document.querySelector("#bg-music");
+
+    let isAppPaused = false;
+
+    // Attempt to play music immediately
+    const startMusic = () => {
+        bgMusic.play().then(() => {
+            console.log("Music started");
+        }).catch(e => {
+            console.log("Autoplay blocked, waiting for interaction", e);
+        });
+    };
+
+    startMusic();
 
     // Scroll Observer for auto-playing/pausing videos
     const observerOptions = {
@@ -14,10 +28,15 @@ document.addEventListener("DOMContentLoaded", () => {
         entries.forEach((entry) => {
             const video = entry.target;
             if (entry.isIntersecting) {
-                // Ensure video restarts for a fresh feel
-                video.muted = true; // Still muted for autoplay compliance
+                video.muted = true; // Stay muted as bgMusic is primary
                 video.currentTime = 0;
-                video.play().catch(e => console.log("Autoplay blocked", e));
+                
+                // Only play if the app isn't explicitly paused
+                if (!isAppPaused) {
+                    video.play().catch(e => console.log("Video autoplay blocked", e));
+                } else {
+                    video.pause();
+                }
             } else {
                 video.pause();
             }
@@ -25,29 +44,35 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const observer = new IntersectionObserver(handleIntersection, observerOptions);
+    videos.forEach((video) => observer.observe(video));
 
-    videos.forEach((video) => {
-        observer.observe(video);
-
-        // Tap to play/pause functionality (YouTube Shorts style)
-        video.addEventListener("click", () => {
-            if (video.paused) {
-                video.play();
-            } else {
-                video.pause();
-            }
-        });
-    });
-
-    // Unmute logic on first interaction
-    const unmuteApp = () => {
-        videos.forEach(v => v.muted = false);
-        window.removeEventListener("click", unmuteApp);
-        window.removeEventListener("touchstart", unmuteApp);
+    // Global Toggle Functionality
+    const toggleAppPlayback = () => {
+        if (bgMusic.paused) {
+            // Play everything
+            bgMusic.play().catch(e => console.log("Music play blocked", e));
+            isAppPaused = false;
+            
+            // Play the currently visible video
+            const visibleVideo = Array.from(videos).find(v => {
+                const rect = v.getBoundingClientRect();
+                return rect.top >= 0 && rect.bottom <= window.innerHeight;
+            });
+            if (visibleVideo) visibleVideo.play();
+        } else {
+            // Pause everything
+            bgMusic.pause();
+            isAppPaused = true;
+            
+            // Pause all videos
+            videos.forEach(v => v.pause());
+        }
     };
 
-    window.addEventListener("click", unmuteApp);
-    window.addEventListener("touchstart", unmuteApp);
+    // Tap anywhere to toggle (excluding potential interactive elements like buttons if added later)
+    window.addEventListener("click", (e) => {
+        toggleAppPlayback();
+    });
 
     // Hide scroll hint after user starts scrolling
     videoFeed.addEventListener("scroll", () => {
@@ -58,5 +83,4 @@ document.addEventListener("DOMContentLoaded", () => {
             scrollHint.style.opacity = "1";
         }
     }, { once: false });
-
 });
