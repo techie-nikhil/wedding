@@ -3,39 +3,107 @@ document.addEventListener("DOMContentLoaded", () => {
     const videos = document.querySelectorAll(".reel-video");
     const scrollHint = document.querySelector("#scroll-hint");
     const bgMusic = document.querySelector("#bg-music");
+    const playOverlay = document.querySelector("#play-overlay");
 
     let isAppPaused = false;
+    let hasStartedOnce = false;
 
-    // Attempt to play music immediately
-    const startMusic = () => {
-        bgMusic.play().then(() => {
-            console.log("Music started");
-        }).catch(e => {
-            console.log("Autoplay blocked, waiting for interaction", e);
+    console.log("App Initialized. Music Element:", bgMusic ? "Found" : "Not Found");
+
+    // Helper: Find current visible video
+    const getVisibleVideo = () => {
+        return Array.from(videos).find(v => {
+            const rect = v.getBoundingClientRect();
+            const center = rect.top + rect.height / 2;
+            return center >= 0 && center <= window.innerHeight;
         });
     };
 
-    startMusic();
+    // Unified play/pause logic
+    const syncPlayback = (shouldPlay) => {
+        if (shouldPlay) {
+            bgMusic.play().then(() => {
+                isAppPaused = false;
+                hasStartedOnce = true;
+                const activeVideo = getVisibleVideo();
+                if (activeVideo) activeVideo.play();
+                console.log("Playback Synced: Playing");
+            }).catch(e => {
+                console.error("Playback failed:", e);
+                // If it fails, we keep the overlay or show it again? 
+                // Usually it only fails if there's no user gesture.
+            });
+        } else {
+            bgMusic.pause();
+            isAppPaused = true;
+            videos.forEach(v => v.pause());
+            console.log("Playback Synced: Paused");
+        }
+    };
 
-    // Scroll Observer for auto-playing/pausing videos
+    // Global Interaction Handler
+    const handleGlobalInteraction = (e) => {
+        // Prevent double-firing on mobile
+        if (e.type === 'click' && 'ontouchstart' in window) return;
+
+        console.log(`Interaction detected: ${e.type}`);
+
+        if (!hasStartedOnce) {
+            // First interaction: Dismiss overlay and start everything
+            if (playOverlay) {
+                playOverlay.classList.add("hidden");
+                setTimeout(() => playOverlay.remove(), 1000);
+            }
+            syncPlayback(true);
+        } else {
+            // Subsequent interactions: Toggle
+            if (bgMusic.paused) {
+                syncPlayback(true);
+            } else {
+                syncPlayback(false);
+            }
+        }
+    };
+
+    // Try autoplay (hidden fallback, likely to fail but good to have)
+    bgMusic.play().then(() => {
+        hasStartedOnce = true;
+        if (playOverlay) playOverlay.remove();
+        console.log("Autoplay success");
+    }).catch(() => {
+        console.log("Autoplay blocked - awaiting user interaction via overlay");
+    });
+
+    // Event Listeners for activation and toggling
+    window.addEventListener("click", handleGlobalInteraction);
+    window.addEventListener("touchstart", handleGlobalInteraction, { passive: true });
+    
+    // Scroll Hint & Position Management
+    videoFeed.addEventListener("scroll", () => {
+        if (videoFeed.scrollTop > 50) {
+            scrollHint.style.opacity = "0";
+            scrollHint.style.transition = "opacity 0.5s ease";
+        } else {
+            scrollHint.style.opacity = "1";
+        }
+    });
+
+    // Intersection Observer for scrolling through videos
     const observerOptions = {
         root: videoFeed,
         rootMargin: "0px",
-        threshold: 0.7, // Play when 70% of the video is in view
+        threshold: 0.6,
     };
 
     const handleIntersection = (entries) => {
         entries.forEach((entry) => {
             const video = entry.target;
             if (entry.isIntersecting) {
-                video.muted = true; // Stay muted as bgMusic is primary
+                video.muted = true; // bgMusic is primary
                 video.currentTime = 0;
                 
-                // Only play if the app isn't explicitly paused
-                if (!isAppPaused) {
-                    video.play().catch(e => console.log("Video autoplay blocked", e));
-                } else {
-                    video.pause();
+                if (hasStartedOnce && !isAppPaused) {
+                    video.play().catch(e => console.warn("Video play failed", e));
                 }
             } else {
                 video.pause();
@@ -45,58 +113,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const observer = new IntersectionObserver(handleIntersection, observerOptions);
     videos.forEach((video) => observer.observe(video));
-
-    // Initial interaction handler to start music if blocked
-    const startAppOnInteraction = () => {
-        if (bgMusic.paused) {
-            bgMusic.play().then(() => {
-                isAppPaused = false;
-                console.log("Music started via interaction");
-            }).catch(e => console.log("Still blocked", e));
-        }
-        // Remove listeners once interaction occurs
-        window.removeEventListener("click", startAppOnInteraction);
-        window.removeEventListener("touchstart", startAppOnInteraction);
-        videoFeed.removeEventListener("scroll", startAppOnInteraction);
-    };
-
-    // Global Toggle Functionality (only after initial start)
-    const toggleAppPlayback = (e) => {
-        // If music hasn't started yet, this click will be handled by the interaction listener
-        // But we want toggling to work after the first start.
-        if (bgMusic.paused && !isAppPaused) return; // Wait for initial start handled below
-
-        if (bgMusic.paused) {
-            bgMusic.play().catch(e => console.log("Music play blocked", e));
-            isAppPaused = false;
-            const visibleVideo = Array.from(videos).find(v => {
-                const rect = v.getBoundingClientRect();
-                return rect.top >= 0 && rect.bottom <= window.innerHeight;
-            });
-            if (visibleVideo) visibleVideo.play();
-        } else {
-            bgMusic.pause();
-            isAppPaused = true;
-            videos.forEach(v => v.pause());
-        }
-    };
-
-    // Interaction fallbacks
-    window.addEventListener("click", startAppOnInteraction);
-    window.addEventListener("touchstart", startAppOnInteraction);
-    videoFeed.addEventListener("scroll", startAppOnInteraction);
-
-    // Regular toggle logic for clicks after start
-    // We add this with a slight delay or handle it within the toggle function
-    window.addEventListener("click", toggleAppPlayback);
-
-    // Hide scroll hint and manage hint visibility
-    videoFeed.addEventListener("scroll", () => {
-        if (videoFeed.scrollTop > 50) {
-            scrollHint.style.opacity = "0";
-            scrollHint.style.transition = "opacity 0.5s ease";
-        } else {
-            scrollHint.style.opacity = "1";
-        }
-    }, { once: false });
 });
